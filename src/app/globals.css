@@ -1,0 +1,23 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter";
+@import "../styles/tokens.css";
+
+/* Dark mode follows data-theme on <html> (light, dark, system), set from Preferences. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --shadow-float: 0 8px 24px rgb(10 10 10 / 0.08);
+}
+
+body {
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
