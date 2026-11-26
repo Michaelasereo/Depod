@@ -58,6 +58,7 @@ export function Modal({
   primaryLabel,
   secondaryLabel,
   primaryVariant = "primary",
+  primaryType = "button",
   onPrimary,
   onSecondary,
   onClose,
@@ -68,6 +69,8 @@ export function Modal({
   primaryLabel: string;
   secondaryLabel?: string;
   primaryVariant?: "primary" | "danger";
+  /** "submit" when the modal sits inside a <form>. */
+  primaryType?: "button" | "submit";
   onPrimary?: () => void;
   onSecondary?: () => void;
   onClose?: () => void;
@@ -86,7 +89,7 @@ export function Modal({
             {secondaryLabel}
           </Button>
         )}
-        <Button variant={primaryVariant} onClick={onPrimary}>
+        <Button variant={primaryVariant} htmlType={primaryType} onClick={onPrimary}>
           {primaryLabel}
         </Button>
       </div>
