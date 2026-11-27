@@ -37,7 +37,22 @@ export async function proxy(request: NextRequest) {
   };
 
   // Until the marketing site lands (Phase 7), the root goes straight into the app.
-  if (path === "/") return redirect(user ? "/home" : "/sign-in");
+  if (path === "/") {
+    // Supabase falls back to the site root when a redirect URL isn't allowed: finish or report the sign-in.
+    const q = request.nextUrl.searchParams;
+    if (q.get("code")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/callback";
+      return NextResponse.redirect(url);
+    }
+    if (q.get("error")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/link-not-working";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    return redirect(user ? "/home" : "/sign-in");
+  }
 
   const needsAuth = PROTECTED.some((p) => path.startsWith(p));
   const isStep = SECOND_STEP.some((p) => path.startsWith(p));
