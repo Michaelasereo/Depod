@@ -66,7 +66,7 @@ export function Modal({
   title: string;
   body?: string;
   children?: React.ReactNode;
-  primaryLabel: string;
+  primaryLabel?: string;
   secondaryLabel?: string;
   primaryVariant?: "primary" | "danger";
   /** "submit" when the modal sits inside a <form>. */
@@ -83,16 +83,18 @@ export function Modal({
       </div>
       {body && <p className="text-body-15 text-text-secondary">{body}</p>}
       {children && <div className="flex flex-col gap-3">{children}</div>}
-      <div className="flex justify-end gap-2">
+      {(primaryLabel || secondaryLabel) && <div className="flex justify-end gap-2">
         {secondaryLabel && (
           <Button variant="secondary" onClick={onSecondary}>
             {secondaryLabel}
           </Button>
         )}
-        <Button variant={primaryVariant} htmlType={primaryType} onClick={onPrimary}>
-          {primaryLabel}
-        </Button>
-      </div>
+        {primaryLabel && (
+          <Button variant={primaryVariant} htmlType={primaryType} onClick={onPrimary}>
+            {primaryLabel}
+          </Button>
+        )}
+      </div>}
     </div>
   );
 }
