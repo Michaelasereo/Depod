@@ -73,7 +73,9 @@ function StarterDiagram({ id, on }: { id: StarterLayout; on: boolean }) {
     ),
   };
   return (
-    <div className={cn("h-[200px] w-full rounded-2xl border-2 p-2.5", on ? "border-border-focus bg-bg-surface" : "border-transparent bg-bg-subtle")}>{cls[id]}</div>
+    <div className={cn("h-[200px] w-full rounded-2xl border-2 p-2.5", on ? "border-border-focus bg-bg-surface" : "border-transparent bg-bg-subtle")}>
+      {cls[id]}
+    </div>
   );
 }
 
@@ -112,7 +114,10 @@ export function StarterPicker({
               <span className="flex items-center gap-2">
                 <span
                   aria-hidden
-                  className={cn("inline-block size-[18px] shrink-0 rounded-full bg-bg-surface", on ? "border-[5px] border-border-focus" : "border-[1.5px] border-border-strong")}
+                  className={cn(
+                    "inline-block size-[18px] shrink-0 rounded-full bg-bg-surface",
+                    on ? "border-[5px] border-border-focus" : "border-[1.5px] border-border-strong",
+                  )}
                 />
                 <span className="text-label-13 text-text-primary">{s.label}</span>
               </span>
@@ -155,11 +160,7 @@ function TileView({
   const [broken, setBroken] = useState<string | null>(null);
   const missing = !img || broken === img.url;
   return (
-    <div
-      className={cn("group absolute overflow-hidden rounded-xl", missing ? "bg-status-danger-bg" : "bg-bg-subtle")}
-      style={rect}
-      onDoubleClick={onOpen}
-    >
+    <div className={cn("group absolute overflow-hidden rounded-xl", missing ? "bg-status-danger-bg" : "bg-bg-subtle")} style={rect} onDoubleClick={onOpen}>
       {img && !missing && (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={img.url} alt={img.name} draggable={false} className="size-full object-cover" onError={() => setBroken(img.url)} />
@@ -204,6 +205,13 @@ export function BentoPanel({
   onAddAll,
   hasReferences,
   toast,
+  width = BENTO_WIDTH,
+  title = "Bento",
+  badge = "Auto-arranged",
+  allowStarter = true,
+  emptyTitle = "Your bento is empty",
+  emptyBody = "Select references and press Add to bento, or add them all.",
+  footer,
 }: {
   tiles: Tile[];
   images: Map<string, CanvasImage>;
@@ -220,6 +228,14 @@ export function BentoPanel({
   onAddAll: () => void;
   hasReferences: boolean;
   toast: (msg: string) => void;
+  /** The project bento (05) is narrower and has no starter layout. */
+  width?: number;
+  title?: string;
+  badge?: string;
+  allowStarter?: boolean;
+  emptyTitle?: string;
+  emptyBody?: string;
+  footer?: React.ReactNode;
 }) {
   const [settings, setSettings] = useState(false);
   const [changing, setChanging] = useState(false);
@@ -229,17 +245,19 @@ export function BentoPanel({
   const menuRef = useClickAway(!!menu, () => setMenu(null));
   const frameRef = useRef<HTMLDivElement>(null);
 
-  const inner = BENTO_WIDTH - PAD * 2;
-  const height = Math.max(bentoHeight(tiles, { gap: GAP, rowHeight: ROW_H }), 0);
+  const inner = width - PAD * 2;
+  // Narrower bentos keep the same cell proportions.
+  const rowH = Math.round((ROW_H * width) / BENTO_WIDTH);
+  const height = Math.max(bentoHeight(tiles, { gap: GAP, rowHeight: rowH }), 0);
   const allLocked = tiles.length > 0 && tiles.every((t) => t.locked);
   const menuTile = menu ? tiles.find((t) => t.imageId === menu.id) : undefined;
 
   return (
-    <section aria-label="Bento" className="flex flex-col gap-3" style={{ width: BENTO_WIDTH }}>
+    <section aria-label="Bento" className="flex flex-col gap-3" style={{ width }}>
       <header className="flex h-7 items-center justify-between">
         <span className="flex items-center gap-2.5">
-          <span className="text-label-13 text-text-primary">Bento</span>
-          {tiles.length > 0 && <Badge>Auto-arranged</Badge>}
+          <span className="text-label-13 text-text-primary">{title}</span>
+          {tiles.length > 0 && badge && <Badge>{badge}</Badge>}
         </span>
         {canEdit && tiles.length > 0 && (
           <span className="flex items-center gap-2">
@@ -253,26 +271,28 @@ export function BentoPanel({
             >
               Shuffle
             </Button>
-            <div ref={settingsRef} className="relative">
-              <Button variant="ghost" size="small" leadingIcon="sliders" aria-expanded={settings} onClick={() => setSettings(!settings)}>
-                Settings
-              </Button>
-              {settings && (
-                <div className="absolute right-0 top-9 z-20">
-                  <Menu>
-                    <MenuItem
-                      icon="grid"
-                      onSelect={() => {
-                        setSettings(false);
-                        setChanging(true);
-                      }}
-                    >
-                      Change starter layout
-                    </MenuItem>
-                  </Menu>
-                </div>
-              )}
-            </div>
+            {allowStarter && (
+              <div ref={settingsRef} className="relative">
+                <Button variant="ghost" size="small" leadingIcon="sliders" aria-expanded={settings} onClick={() => setSettings(!settings)}>
+                  Settings
+                </Button>
+                {settings && (
+                  <div className="absolute right-0 top-9 z-20">
+                    <Menu>
+                      <MenuItem
+                        icon="grid"
+                        onSelect={() => {
+                          setSettings(false);
+                          setChanging(true);
+                        }}
+                      >
+                        Change starter layout
+                      </MenuItem>
+                    </Menu>
+                  </div>
+                )}
+              </div>
+            )}
           </span>
         )}
       </header>
@@ -280,7 +300,10 @@ export function BentoPanel({
       <div
         ref={frameRef}
         className={cn("relative rounded-3xl border bg-bg-surface", over ? "border-border-focus" : "border-border-default")}
-        style={{ padding: PAD, minHeight: showPicker || changing || tiles.length === 0 ? 400 : undefined }}
+        style={{
+          padding: PAD,
+          minHeight: showPicker || changing || tiles.length === 0 ? 400 : undefined,
+        }}
         onDragOver={(e) => {
           if (!canEdit || !e.dataTransfer.types.includes("application/x-depod-images")) return;
           e.preventDefault();
@@ -311,8 +334,8 @@ export function BentoPanel({
           <div className="flex flex-col items-center gap-2 px-10 py-16 text-center">
             <Illustration name="moodboard-bento" />
             <div className="h-2" />
-            <h2 className="text-heading-20 text-text-primary">Your bento is empty</h2>
-            <p className="max-w-[300px] text-body-15 text-text-secondary">Select references and press Add to bento, or add them all.</p>
+            <h2 className="text-heading-20 text-text-primary">{emptyTitle}</h2>
+            <p className="max-w-[300px] text-body-15 text-text-secondary">{emptyBody}</p>
             {canEdit && hasReferences && (
               <>
                 <div className="h-2" />
@@ -327,14 +350,18 @@ export function BentoPanel({
                 key={t.imageId}
                 tile={t}
                 img={images.get(t.imageId)}
-                rect={tileRect(t, { width: inner, gap: GAP, rowHeight: ROW_H })}
+                rect={tileRect(t, { width: inner, gap: GAP, rowHeight: rowH })}
                 canEdit={canEdit}
                 onLock={() => onLock(t.imageId, !t.locked)}
                 onOpen={() => onOpen(t.imageId)}
                 onMenu={(r) => {
                   const f = frameRef.current!.getBoundingClientRect();
-                  const scale = f.width / BENTO_WIDTH;
-                  setMenu({ id: t.imageId, x: (r.right - f.left) / scale, y: (r.bottom - f.top) / scale + 4 });
+                  const scale = f.width / width;
+                  setMenu({
+                    id: t.imageId,
+                    x: (r.right - f.left) / scale,
+                    y: (r.bottom - f.top) / scale + 4,
+                  });
                 }}
               />
             ))}
@@ -342,7 +369,7 @@ export function BentoPanel({
         )}
 
         {menu && menuTile && (
-          <div ref={menuRef} className="absolute z-20" style={{ left: Math.min(menu.x - 234, BENTO_WIDTH - 246), top: menu.y }}>
+          <div ref={menuRef} className="absolute z-20" style={{ left: Math.min(menu.x - 234, width - 246), top: menu.y }}>
             <Menu>
               <MenuItem icon="comment">Comment</MenuItem>
               <MenuItem icon="image" onSelect={() => (setMenu(null), onReplace(menu.id))}>
@@ -359,6 +386,7 @@ export function BentoPanel({
           </div>
         )}
       </div>
+      {footer}
     </section>
   );
 }

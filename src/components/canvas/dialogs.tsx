@@ -101,7 +101,8 @@ export function ReplaceImage({
 }: {
   candidates: CanvasImage[];
   onPick: (id: string) => void;
-  onFile: (file: File) => void;
+  /** Without it (the project bento), only images already in the project can be picked. */
+  onFile?: (file: File) => void;
   onClose: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -109,32 +110,39 @@ export function ReplaceImage({
   return (
     <Scrim onClose={onClose}>
       <Modal title="Replace image" body="The tile keeps its place, lock and comments." secondaryLabel="Cancel" onSecondary={onClose} onClose={onClose}>
-        <button
-          type="button"
-          onClick={() => input.current?.click()}
-          onDragOver={(e) => (e.preventDefault(), setOver(true))}
-          onDragLeave={() => setOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setOver(false);
-            const f = e.dataTransfer.files[0];
-            if (f) onFile(f);
-          }}
-          className={cn(
-            "flex h-28 flex-col items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed text-label-13 text-text-secondary",
-            over ? "border-border-focus bg-bg-subtle" : "border-border-strong",
-          )}
-        >
-          <Icon name="upload" />
-          Drop an image or browse
-        </button>
-        <input ref={input} type="file" accept="image/*,.heic,.heif" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+        {onFile && (
+          <button
+            type="button"
+            onClick={() => input.current?.click()}
+            onDragOver={(e) => (e.preventDefault(), setOver(true))}
+            onDragLeave={() => setOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setOver(false);
+              const f = e.dataTransfer.files[0];
+              if (f) onFile?.(f);
+            }}
+            className={cn(
+              "flex h-28 flex-col items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed text-label-13 text-text-secondary",
+              over ? "border-border-focus bg-bg-subtle" : "border-border-strong",
+            )}
+          >
+            <Icon name="upload" />
+            Drop an image or browse
+          </button>
+        )}
+        {onFile && <input ref={input} type="file" accept="image/*,.heic,.heif" hidden onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />}
         {candidates.length > 0 && (
           <>
-            <p className="text-caption-12 text-text-secondary">Or pick one from References</p>
+            <p className="text-caption-12 text-text-secondary">{onFile ? "Or pick one from References" : "Pick one from this project's moodboards"}</p>
             <div className="grid max-h-[220px] grid-cols-5 gap-2 overflow-y-auto">
               {candidates.map((c) => (
-                <button key={c.id} type="button" onClick={() => onPick(c.id)} className="aspect-square overflow-hidden rounded-lg bg-bg-subtle hover:outline-2 hover:outline-border-focus">
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => onPick(c.id)}
+                  className="aspect-square overflow-hidden rounded-lg bg-bg-subtle hover:outline-2 hover:outline-border-focus"
+                >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={c.url} alt={c.name} className="size-full object-cover" />
                 </button>

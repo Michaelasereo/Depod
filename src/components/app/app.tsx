@@ -33,11 +33,11 @@ export function TopNav({
   return (
     <header className="flex h-16 items-center justify-between border-b border-border-default bg-bg-surface px-8">
       <div className="flex items-center gap-7">
-        <Link href="/" aria-label="Depod home">
+        <Link href="/home" aria-label="Depod home">
           <Wordmark className="text-text-primary" />
         </Link>
         <nav className="flex gap-1">
-          <NavLink href="/" selected={current === "home"}>Home</NavLink>
+          <NavLink href="/home" selected={current === "home"}>Home</NavLink>
           <NavLink href="/projects" selected={current === "projects"}>Projects</NavLink>
           <NavLink href="/shared" selected={current === "shared"}>Shared with me</NavLink>
         </nav>
@@ -117,24 +117,60 @@ export function MoodboardCard({
 }
 
 /* Figma: Project card (62:1071). */
-export function ProjectCard({ href, name, details, images }: { href: string; name: string; details: string; images: string[] }) {
+export function ProjectCard({
+  href,
+  name,
+  details,
+  images,
+  editing,
+  onRename,
+  onMore,
+}: {
+  href: string;
+  name: string;
+  details: string;
+  images: string[];
+  /** 37b: the name turns into a field. Enter saves, Escape cancels. */
+  editing?: boolean;
+  onRename?: (name: string | null) => void;
+  onMore?: (anchor: DOMRect) => void;
+}) {
+  const thumbs = [...images.slice(0, 3), ...Array(Math.max(0, 3 - images.length)).fill("")];
   return (
     <div className="flex w-full flex-col gap-3 rounded-[20px] border border-border-default bg-bg-surface p-3">
       <Link href={href} className="grid h-[140px] grid-cols-[2fr_1fr_1fr] gap-2">
-        {images.slice(0, 3).map((img, i) => (
+        {thumbs.map((img, i) => (
           <span
             key={i}
             className="rounded-xl bg-bg-subtle bg-cover bg-center"
-            style={img.startsWith("#") ? { backgroundColor: img } : { backgroundImage: `url(${img})` }}
+            style={!img ? undefined : img.startsWith("#") ? { backgroundColor: img } : { backgroundImage: `url("${img}")` }}
           />
         ))}
       </Link>
       <div className="flex items-center justify-between gap-2 px-0.5">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <Link href={href} className="truncate text-label-13 text-text-primary">{name}</Link>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          {editing ? (
+            <input
+              autoFocus
+              defaultValue={name}
+              aria-label="Project name"
+              maxLength={120}
+              className="h-8 w-full rounded-lg border-[1.5px] border-border-focus bg-bg-surface px-2 text-body-15 text-text-primary outline-none"
+              onFocus={(e) => e.currentTarget.select()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onRename?.(e.currentTarget.value);
+                if (e.key === "Escape") onRename?.(null);
+              }}
+              onBlur={(e) => onRename?.(e.currentTarget.value)}
+            />
+          ) : (
+            <Link href={href} className="truncate text-label-13 text-text-primary">
+              {name}
+            </Link>
+          )}
           <span className="truncate text-caption-12 text-text-secondary">{details}</span>
         </div>
-        <IconButton icon="more" label={`More for ${name}`} size="small" />
+        <IconButton icon="more" label={`More for ${name}`} size="small" onClick={(e) => onMore?.(e.currentTarget.getBoundingClientRect())} />
       </div>
     </div>
   );

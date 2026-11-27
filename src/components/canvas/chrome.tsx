@@ -1,6 +1,6 @@
 import { cn } from "@/lib/cn";
 import { Icon, type IconName } from "../icon/Icon";
-import { Button, IconButton } from "../ui/Button";
+import { Button, IconButton, LinkButton } from "../ui/Button";
 import { Avatar, Badge } from "../ui/display";
 import { Wordmark } from "../brand/Logo";
 
@@ -112,7 +112,8 @@ export function CanvasNavRight({
   primaryIcon?: IconName;
   people: Array<{ initials: string; name: string }>;
   secondaryLabel?: string;
-  primaryLabel?: string;
+  /** null hides the primary action. */
+  primaryLabel?: string | null;
   onSecondary?: () => void;
   onPrimary?: () => void;
 }) {
@@ -126,9 +127,11 @@ export function CanvasNavRight({
       <Button variant="secondary" onClick={onSecondary}>
         {secondaryLabel}
       </Button>
-      <Button leadingIcon={primaryIcon} onClick={onPrimary}>
-        {primaryLabel}
-      </Button>
+      {primaryLabel && (
+        <Button leadingIcon={primaryIcon} onClick={onPrimary}>
+          {primaryLabel}
+        </Button>
+      )}
     </div>
   );
 }
@@ -205,6 +208,22 @@ export function BentoTile({
           {comments}
         </span>
       ) : null}
+    </div>
+  );
+}
+
+/* 08 / 08b: the right of the shared view. Signed in: View only and your avatar. Signed out: Sign in. */
+export function SharedNavRight({ signedIn, initials, signInHref }: { signedIn: boolean; initials?: string; signInHref: string }) {
+  return (
+    <div className={cn("inline-flex items-center gap-2 rounded-[14px] p-2", floating)}>
+      {signedIn ? (
+        <>
+          <Badge icon="eye">View only</Badge>
+          <Avatar initials={initials ?? ""} name="You" size={24} />
+        </>
+      ) : (
+        <LinkButton href={signInHref}>Sign in</LinkButton>
+      )}
     </div>
   );
 }

@@ -26,10 +26,12 @@ type Project = { id: string; name: string };
 /* 18 New moodboard: Name and Project. */
 export function NewMoodboardDialog({
   projects,
+  defaultProjectId,
   onCreate,
   onClose,
 }: {
   projects: Project[];
+  defaultProjectId?: string;
   onCreate: (name: string, projectId: string | null) => Promise<string | void>;
   onClose: () => void;
 }) {
@@ -56,7 +58,7 @@ export function NewMoodboardDialog({
             <span className="text-label-13 text-text-primary">Project</span>
             <span className="flex h-10 items-center gap-2 rounded-[10px] border border-border-strong bg-bg-surface px-3 text-body-15">
               <Icon name="folder" className="text-icon-secondary" />
-              <select name="project" defaultValue="" className="min-w-0 flex-1 appearance-none bg-transparent text-text-primary outline-none">
+              <select name="project" defaultValue={defaultProjectId ?? ""} className="min-w-0 flex-1 appearance-none bg-transparent text-text-primary outline-none">
                 <option value="">No project</option>
                 {projects.map((p) => (
                   <option key={p.id} value={p.id}>

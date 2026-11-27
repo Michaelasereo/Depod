@@ -1,7 +1,8 @@
 "use client";
 
 import { MoodboardCanvas } from "@/components/canvas/MoodboardCanvas";
-import type { CanvasImage, MoodboardApi } from "@/components/canvas/types";
+import { ProjectCanvas } from "@/components/canvas/ProjectCanvas";
+import type { CanvasImage, MoodboardApi, ProjectApi } from "@/components/canvas/types";
 import { arrange } from "@/lib/bento/layout";
 
 /* A moodboard with sample images and no saving, to check the canvas against Figma without signing in. */
@@ -22,7 +23,44 @@ const api: MoodboardApi = {
   deleteImage: async () => {},
 };
 
-export function DemoCanvas({ state }: { state: "filled" | "empty" | "references" }) {
+const projectApi: ProjectApi = {
+  saveBento: async () => {},
+  share: { setEnabled: async (on) => ({ enabled: on, url: on ? "https://depod.app/s/demo" : null }) },
+  createMoodboard: async () => {},
+};
+
+/* Project canvas (05): four moodboards with their bentos, and a project bento built from three of them. */
+function DemoProject({ empty, shared }: { empty: boolean; shared: boolean }) {
+  const names = ["Warm and editorial", "Bold and graphic", "Quiet minimal", "Photography"];
+  const boards = empty
+    ? []
+    : names.map((name, b) => {
+        const images = Array.from({ length: 5 }, (_, i) => ({ ...sample(12)[(b * 3 + i) % 12], id: `b${b}-${i}` }));
+        return { id: `board-${b}`, name, images, tiles: arrange(images.map((x) => ({ id: x.id, ratio: x.width / x.height })), { starter: "hero-left", seed: b + 1 }) };
+      });
+  const picked = boards.length ? [boards[0].images[0], boards[2].images[1], boards[3].images[0], boards[0].images[3], boards[2].images[2]] : [];
+  const tiles = arrange(picked.map((x) => ({ id: x.id, ratio: x.width / x.height })), { starter: "hero-left", seed: 2 });
+  return (
+    <ProjectCanvas
+      api={projectApi}
+      shared={shared ? { by: "Ada", signedIn: false, signInHref: "/sign-in" } : undefined}
+      data={{
+        id: "demo-project",
+        name: "Brand refresh",
+        boards,
+        doc: { v: 1, seed: 2, tiles },
+        canEdit: !shared,
+        people: [{ initials: "AO", name: "Ada" }, { initials: "TB", name: "Tunde" }, { initials: "MA", name: "Michael" }],
+        share: { enabled: false, url: null },
+      }}
+    />
+  );
+}
+
+export function DemoCanvas({ state }: { state: "filled" | "empty" | "references" | "project" | "project-empty" | "project-shared" | "shared" }) {
+  if (state.startsWith("project")) return <DemoProject empty={state === "project-empty"} shared={state === "project-shared"} />;
+  const shared = state === "shared";
+  if (shared) state = "filled";
   const images = state === "empty" ? [] : sample(12);
   const bentoImages = images.slice(0, 7);
   const tiles = state === "filled" ? arrange(bentoImages.map((i) => ({ id: i.id, ratio: i.width / i.height })), { starter: "hero-left", seed: 4 }) : [];
@@ -30,6 +68,7 @@ export function DemoCanvas({ state }: { state: "filled" | "empty" | "references"
   return (
     <MoodboardCanvas
       api={api}
+      shared={shared ? { by: "Ada", signedIn: false, signInHref: "/sign-in" } : undefined}
       data={{
         id: "demo",
         name: state === "empty" ? "Untitled moodboard" : "Spring campaign",
@@ -37,7 +76,7 @@ export function DemoCanvas({ state }: { state: "filled" | "empty" | "references"
         starter: "hero-left",
         images,
         doc: { v: 1, seed: 4, tiles },
-        canEdit: true,
+        canEdit: !shared,
         plan: "free",
         imageLimit: 50,
         markLocked: true,
