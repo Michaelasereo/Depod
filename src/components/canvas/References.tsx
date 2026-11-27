@@ -34,6 +34,7 @@ export function References({
   onToggle,
   onClear,
   onAddSelected,
+  onDeleteSelected,
   onAddAll,
   onBrowse,
   onOpen,
@@ -46,6 +47,7 @@ export function References({
   onToggle: (id: string) => void;
   onClear: () => void;
   onAddSelected: () => void;
+  onDeleteSelected: () => void;
   onAddAll: () => void;
   onBrowse: () => void;
   onOpen: (id: string) => void;
@@ -147,6 +149,9 @@ export function References({
           <span className="whitespace-nowrap text-label-13 text-text-primary">{selected.size} selected</span>
           <Button variant="ghost" size="small" onClick={onClear}>
             Clear
+          </Button>
+          <Button variant="ghost" size="small" leadingIcon="trash" onClick={onDeleteSelected}>
+            Delete
           </Button>
           <Button size="small" leadingIcon="plus" onClick={onAddSelected}>
             Add to bento

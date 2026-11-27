@@ -163,3 +163,22 @@ export function DuplicateDialog({ count, onAdd, onSkip }: { count: number; onAdd
     </Scrim>
   );
 }
+
+/* Figma 20e Delete references. */
+export function DeleteImagesDialog({ count, onDelete, onCancel }: { count: number; onDelete: () => void; onCancel: () => void }) {
+  const label = count === 1 ? "Delete 1 image" : `Delete ${count} images`;
+  return (
+    <Scrim onClose={onCancel}>
+      <Modal
+        title={`${label}?`}
+        body="They come out of References and the bento. You can't undo this."
+        secondaryLabel="Cancel"
+        onSecondary={onCancel}
+        primaryLabel={label}
+        primaryVariant="danger"
+        onPrimary={onDelete}
+        onClose={onCancel}
+      />
+    </Scrim>
+  );
+}

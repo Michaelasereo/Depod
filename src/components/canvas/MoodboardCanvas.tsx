@@ -9,7 +9,7 @@ import { Toast } from "../ui/display";
 import { CanvasNavLeft, CanvasNavRight, Toolbar, Zoom, type CanvasTool } from "./chrome";
 import { References, REF_WIDTH, masonry } from "./References";
 import { BentoPanel, BENTO_WIDTH, GAP, ROW_H } from "./BentoPanel";
-import { DuplicateDialog, ImageDetail, ReplaceImage } from "./dialogs";
+import { DeleteImagesDialog, DuplicateDialog, ImageDetail, ReplaceImage } from "./dialogs";
 import { useViewport } from "./useViewport";
 import type { CanvasImage, MoodboardApi, MoodboardData } from "./types";
 
@@ -36,6 +36,7 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
   const [detail, setDetail] = useState<string | null>(null);
   const [replacing, setReplacing] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [dropCount, setDropCount] = useState(0);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -117,16 +118,20 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
     setReplacing(null);
   };
 
-  const deleteImage = async (id: string) => {
+  /** Deletes images from References (and the bento): 20e, and Delete from References in 29. */
+  const deleteImages = async (ids: string[]) => {
     setDetail(null);
-    if (inBento.has(id)) removeFromBento(id);
-    setImages((list) => list.filter((i) => i.id !== id));
-    try {
-      await api.deleteImage(id);
-    } catch {
-      showToast("Couldn't delete the image. Try again.");
-    }
+    setConfirmDelete(false);
+    setSelected(new Set());
+    const gone = new Set(ids);
+    const remaining = bentoIds().filter((x) => !gone.has(x));
+    if (remaining.length !== doc.tiles.length) relayout(remaining, { previous: doc.tiles.filter((t) => !gone.has(t.imageId)) });
+    setImages((list) => list.filter((i) => !gone.has(i.id)));
+    const results = await Promise.allSettled(ids.map((id) => api.deleteImage(id)));
+    const failed = results.filter((r) => r.status === "rejected").length;
+    if (failed) showToast(`Couldn't delete ${failed} image${failed === 1 ? "" : "s"}. Try again.`);
   };
+  const deleteImage = (id: string) => deleteImages([id]);
 
   // ── Uploads (14, 40a–c) ───────────────────────────────────────────────────
   const uploadPrepared = useCallback(
@@ -260,6 +265,7 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
               }
               onClear={() => setSelected(new Set())}
               onAddSelected={() => addToBento([...selected])}
+              onDeleteSelected={() => setConfirmDelete(true)}
               onAddAll={() => addToBento(ready.map((i) => i.id))}
               onBrowse={() => fileInput.current?.click()}
               onOpen={setDetail}
@@ -363,6 +369,10 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
             }
           }}
         />
+      )}
+
+      {confirmDelete && selected.size > 0 && (
+        <DeleteImagesDialog count={selected.size} onDelete={() => deleteImages([...selected])} onCancel={() => setConfirmDelete(false)} />
       )}
 
       {pending && (
