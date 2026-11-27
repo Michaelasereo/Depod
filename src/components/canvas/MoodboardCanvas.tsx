@@ -1,17 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 import { arrange, setLocked, type StarterLayout, type Tile } from "@/lib/bento/layout";
 import type { BentoDoc } from "@/lib/bento/doc";
 import { isImage, prepare, type Prepared } from "@/lib/upload/prepare";
+import { takeParkedFiles } from "@/lib/upload/pending";
+import { Menu, MenuDivider, MenuItem } from "../ui/overlays";
+import { DeleteMoodboardDialog, PlanLimitDialog } from "../app/moodboard-dialogs";
+import { ExportDialog } from "./ExportDialog";
 import { Toast } from "../ui/display";
 import { CanvasNavLeft, CanvasNavRight, Toolbar, Zoom, type CanvasTool } from "./chrome";
 import { References, REF_WIDTH, masonry } from "./References";
 import { BentoPanel, BENTO_WIDTH, GAP, ROW_H } from "./BentoPanel";
 import { DeleteImagesDialog, DuplicateDialog, ImageDetail, ReplaceImage } from "./dialogs";
 import { useViewport } from "./useViewport";
-import type { CanvasImage, MoodboardApi, MoodboardData } from "./types";
+import { PlanLimitError, type CanvasImage, type MoodboardApi, type MoodboardData } from "./types";
 
 /*
  * The moodboard canvas (Figma 4 · Moodboard editor).
@@ -27,6 +32,7 @@ const UPLOAD_CONCURRENCY = 3;
 type Pending = { files: Prepared[]; dupes: number };
 
 export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: MoodboardApi }) {
+  const router = useRouter();
   const [images, setImages] = useState<CanvasImage[]>(data.images);
   const [doc, setDoc] = useState<BentoDoc>(data.doc);
   const [starter, setStarter] = useState<StarterLayout>(data.starter);
@@ -39,6 +45,8 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [dropCount, setDropCount] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [dialog, setDialog] = useState<"export" | "delete" | "limit" | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const failedFiles = useRef(new Map<string, Prepared>());
   const fileInput = useRef<HTMLInputElement>(null);
@@ -157,7 +165,14 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
             const saved = await api.upload(files[i]);
             done.push(saved);
             setImages((list) => list.map((x) => (x.id === temp.id ? { ...saved, url: temp.url } : x)));
-          } catch {
+          } catch (err) {
+            if (err instanceof PlanLimitError) {
+              // The server said no (19): drop the placeholder and say why.
+              setImages((list) => list.filter((x) => x.id !== temp.id));
+              setDialog("limit");
+              setProgress((p) => (p ? { ...p, done: p.done + 1 } : p));
+              continue;
+            }
             failedFiles.current.set(temp.id, files[i]);
             setImages((list) => list.map((x) => (x.id === temp.id ? { ...x, status: "failed" } : x)));
           }
@@ -187,14 +202,40 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
           showToast(`Couldn't read ${f.name}.`);
         }
       }
+      // 19: Free moodboards hold 50 images. Add what fits, then explain.
+      if (data.imageLimit != null) {
+        const room = data.imageLimit - images.filter((i) => i.status !== "failed").length;
+        if (prepared.length > room) {
+          prepared.splice(Math.max(room, 0));
+          setDialog("limit");
+        }
+        if (!prepared.length) return;
+      }
       const known = new Set(images.map((i) => i.hash).filter(Boolean));
       // Duplicates of images already in References, or repeated within this drop.
       const dupes = prepared.filter((p) => (known.has(p.hash) ? true : (known.add(p.hash), false))).length;
       if (dupes) setPending({ files: prepared, dupes });
       else uploadPrepared(prepared);
     },
-    [data.canEdit, images, picked, showToast, uploadPrepared],
+    [data.canEdit, data.imageLimit, images, picked, showToast, uploadPrepared],
   );
+
+  // Files dropped on Home come along to the new moodboard.
+  const parkedTaken = useRef(false);
+  useEffect(() => {
+    if (parkedTaken.current) return;
+    parkedTaken.current = true;
+    const files = takeParkedFiles(data.id);
+    if (files.length) queueMicrotask(() => takeFiles(files));
+  }, [data.id, takeFiles]);
+
+  // Close the nav menu on any outside click.
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => !(e.target as HTMLElement).closest?.("[data-menu]") && setMenuOpen(false);
+    window.addEventListener("mousedown", close);
+    return () => window.removeEventListener("mousedown", close);
+  }, [menuOpen]);
 
   const retry = (id: string) => {
     const f = failedFiles.current.get(id);
@@ -295,11 +336,34 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
       </div>
 
       {/* Floating chrome */}
-      <div className="absolute left-4 top-4">
-        <CanvasNavLeft parent={data.projectName} current={data.name} />
+      <div className="absolute left-4 top-4" data-menu>
+        <CanvasNavLeft parent={data.projectName} current={data.name} onMenu={() => setMenuOpen((o) => !o)} />
+        {menuOpen && (
+          <div className="absolute left-0 top-[60px] z-30">
+            <Menu>
+              <MenuItem icon="grid" onSelect={() => (setMenuOpen(false), router.push("/home"))}>
+                Home
+              </MenuItem>
+              {api.deleteMoodboard && data.canEdit && (
+                <>
+                  <MenuDivider />
+                  <MenuItem icon="trash" danger onSelect={() => (setMenuOpen(false), setDialog("delete"))}>
+                    Delete moodboard
+                  </MenuItem>
+                </>
+              )}
+            </Menu>
+          </div>
+        )}
       </div>
       <div className="absolute right-4 top-4">
-        <CanvasNavRight people={data.people} secondaryLabel="Share" primaryLabel="Export" />
+        <CanvasNavRight
+          people={data.people}
+          secondaryLabel="Share"
+          primaryLabel="Export"
+          onSecondary={() => showToast("Sharing comes with teams.")}
+          onPrimary={() => (doc.tiles.length ? setDialog("export") : showToast("Add images to the bento to export it."))}
+        />
       </div>
       <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-col items-center gap-3">
         {progress && progress.total > 1 && (
@@ -374,6 +438,14 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
       {confirmDelete && selected.size > 0 && (
         <DeleteImagesDialog count={selected.size} onDelete={() => deleteImages([...selected])} onCancel={() => setConfirmDelete(false)} />
       )}
+
+      {dialog === "export" && (
+        <ExportDialog tiles={doc.tiles} images={byId} fileName={data.name} markLocked={data.markLocked} onClose={() => setDialog(null)} />
+      )}
+      {dialog === "delete" && api.deleteMoodboard && (
+        <DeleteMoodboardDialog name={data.name} imageCount={ready.length} onDelete={api.deleteMoodboard} onClose={() => setDialog(null)} />
+      )}
+      {dialog === "limit" && <PlanLimitDialog kind="images" plan={data.plan} onClose={() => setDialog(null)} />}
 
       {pending && (
         <DuplicateDialog

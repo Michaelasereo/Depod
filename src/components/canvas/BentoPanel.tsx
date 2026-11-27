@@ -113,20 +113,22 @@ function TileView({
   onMenu: (rect: DOMRect) => void;
   onOpen: () => void;
 }) {
-  const missing = !img;
+  // 41b: no image, or its file didn't load.
+  const [broken, setBroken] = useState<string | null>(null);
+  const missing = !img || broken === img.url;
   return (
     <div
-      className={cn("group absolute overflow-hidden rounded-xl", missing ? "border border-dashed border-border-strong bg-bg-surface" : "bg-bg-subtle")}
+      className={cn("group absolute overflow-hidden rounded-xl", missing ? "bg-status-danger-bg" : "bg-bg-subtle")}
       style={rect}
       onDoubleClick={onOpen}
     >
-      {img && (
+      {img && !missing && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={img.url} alt={img.name} draggable={false} className="size-full object-cover" />
+        <img src={img.url} alt={img.name} draggable={false} className="size-full object-cover" onError={() => setBroken(img.url)} />
       )}
       {missing && (
-        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-caption-12 text-text-secondary">
-          <Icon name="image" />
+        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-caption-12 text-text-danger">
+          <Icon name="alert" />
           Image missing
         </span>
       )}

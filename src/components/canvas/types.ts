@@ -25,6 +25,10 @@ export type MoodboardData = {
   doc: BentoDoc;
   canEdit: boolean;
   people: Array<{ initials: string; name: string }>;
+  /** Plan rules: image cap per moodboard (null = unlimited) and the export mark (Free can't turn it off). */
+  plan: "free" | "pro" | "team" | "enterprise";
+  imageLimit: number | null;
+  markLocked: boolean;
 };
 
 /** Where the canvas saves. The real one writes to Supabase; the demo keeps everything in memory. */
@@ -33,4 +37,9 @@ export type MoodboardApi = {
   setStarter(starter: StarterLayout): Promise<void>;
   upload(file: Prepared): Promise<CanvasImage>;
   deleteImage(id: string): Promise<void>;
+  /** 30: returns an error message, or nothing when deleted. */
+  deleteMoodboard?(typedName: string): Promise<string | void>;
 };
+
+/** Thrown by `upload` when the plan's image limit is reached (19). */
+export class PlanLimitError extends Error {}

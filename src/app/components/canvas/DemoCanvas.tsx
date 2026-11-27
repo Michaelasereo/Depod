@@ -38,6 +38,9 @@ export function DemoCanvas({ state }: { state: "filled" | "empty" | "references"
         images,
         doc: { v: 1, seed: 4, tiles },
         canEdit: true,
+        plan: "free",
+        imageLimit: 50,
+        markLocked: true,
         people: [{ initials: "AO", name: "Ada" }, { initials: "TB", name: "Tunde" }, { initials: "MA", name: "Michael" }],
       }}
     />
