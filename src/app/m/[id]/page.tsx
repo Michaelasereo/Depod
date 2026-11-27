@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { verifiedUser } from "@/lib/security/flow";
 import { parseDoc } from "@/lib/bento/doc";
 import type { StarterLayout } from "@/lib/bento/layout";
 import type { CanvasImage } from "@/components/canvas/types";
 import { LIMITS, type Plan } from "@/lib/data/plans";
+import { NoAccess } from "@/components/app/NoAccess";
+import { shareState } from "@/lib/data/share";
 import { Editor } from "./Editor";
 
 export const metadata: Metadata = { title: "Moodboard · Depod" };
@@ -34,7 +36,7 @@ async function Load({ params }: { params: PageProps<"/m/[id]">["params"] }) {
   const { supabase, user } = v;
 
   const { data: mb } = await supabase.from("moodboards").select("id, name, workspace_id, project_id, starter_layout").eq("id", id).maybeSingle();
-  if (!mb) notFound();
+  if (!mb) return <NoAccess email={user.email ?? ""} />;
 
   const [{ data: project }, { data: images }, { data: bento }, { data: me }, { data: members }, { data: ws }] = await Promise.all([
     mb.project_id ? supabase.from("projects").select("name").eq("id", mb.project_id).maybeSingle() : Promise.resolve({ data: null }),
@@ -78,6 +80,7 @@ async function Load({ params }: { params: PageProps<"/m/[id]">["params"] }) {
         images: canvasImages,
         doc: parseDoc(bento?.layout),
         canEdit: me?.role === "owner" || me?.role === "editor",
+        share: await shareState(supabase, "moodboard", mb.id),
         plan,
         imageLimit: LIMITS[plan].images,
         markLocked: LIMITS[plan].mark,

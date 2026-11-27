@@ -10,8 +10,9 @@ import { takeParkedFiles } from "@/lib/upload/pending";
 import { Menu, MenuDivider, MenuItem } from "../ui/overlays";
 import { DeleteMoodboardDialog, PlanLimitDialog } from "../app/moodboard-dialogs";
 import { ExportDialog } from "./ExportDialog";
+import { ShareDialog } from "./ShareDialog";
 import { Toast } from "../ui/display";
-import { CanvasNavLeft, CanvasNavRight, Toolbar, Zoom, type CanvasTool } from "./chrome";
+import { CanvasNavLeft, CanvasNavRight, SharedNavRight, Toolbar, Zoom, type CanvasTool } from "./chrome";
 import { References, REF_WIDTH, masonry } from "./References";
 import { BentoPanel, BENTO_WIDTH, GAP, ROW_H } from "./BentoPanel";
 import { DeleteImagesDialog, DuplicateDialog, ImageDetail, ReplaceImage } from "./dialogs";
@@ -31,14 +32,22 @@ const UPLOAD_CONCURRENCY = 3;
 
 type Pending = { files: Prepared[]; dupes: number };
 
-export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: MoodboardApi }) {
+/** 08 / 08b: someone opened a share link. Read-only, Hand tool only. */
+export type SharedMode = {
+  by: string;
+  signedIn: boolean;
+  initials?: string;
+  signInHref: string;
+};
+
+export function MoodboardCanvas({ data, api, shared }: { data: MoodboardData; api: MoodboardApi; shared?: SharedMode }) {
   const router = useRouter();
   const [images, setImages] = useState<CanvasImage[]>(data.images);
   const [doc, setDoc] = useState<BentoDoc>(data.doc);
   const [starter, setStarter] = useState<StarterLayout>(data.starter);
   const [picked, setPicked] = useState(data.images.length > 0 || data.doc.tiles.length > 0);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [tool, setTool] = useState<CanvasTool>("select");
+  const [tool, setTool] = useState<CanvasTool>(shared ? "hand" : "select");
   const [detail, setDetail] = useState<string | null>(null);
   const [replacing, setReplacing] = useState<string | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
@@ -46,8 +55,12 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
   const [toast, setToast] = useState<string | null>(null);
   const [dropCount, setDropCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dialog, setDialog] = useState<"export" | "delete" | "limit" | null>(null);
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const [dialog, setDialog] = useState<"export" | "delete" | "limit" | "share" | null>(null);
+  const [share, setShare] = useState(data.share);
+  const [progress, setProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
   const failedFiles = useRef(new Map<string, Prepared>());
   const fileInput = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -81,7 +94,11 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
         const seed = opts.seed ?? d.seed;
         const tiles = arrange(
           list.map((i) => ({ id: i.id, ratio: i.width / i.height })),
-          { starter: opts.starter ?? starter, seed, previous: opts.previous ?? d.tiles },
+          {
+            starter: opts.starter ?? starter,
+            seed,
+            previous: opts.previous ?? d.tiles,
+          },
         );
         const next: BentoDoc = { v: 1, seed, tiles };
         save(next);
@@ -98,7 +115,11 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
     relayout([...bentoIds(), ...fresh]);
     setSelected(new Set());
   };
-  const removeFromBento = (id: string) => relayout(bentoIds().filter((x) => x !== id), { previous: doc.tiles.filter((t) => t.imageId !== id) });
+  const removeFromBento = (id: string) =>
+    relayout(
+      bentoIds().filter((x) => x !== id),
+      { previous: doc.tiles.filter((t) => t.imageId !== id) },
+    );
   const lock = (id: string, locked: boolean) =>
     setDoc((d) => {
       const next = { ...d, tiles: setLocked(d.tiles, id, locked) };
@@ -110,7 +131,11 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
     setStarter(s);
     setPicked(true);
     api.setStarter(s).catch(() => showToast("Couldn't save. Check your connection."));
-    if (doc.tiles.length) relayout(bentoIds(), { starter: s, previous: doc.tiles.filter((t) => t.locked) });
+    if (doc.tiles.length)
+      relayout(bentoIds(), {
+        starter: s,
+        previous: doc.tiles.filter((t) => t.locked),
+      });
   };
 
   /** 20b: the tile keeps its cells and lock; only the image changes. */
@@ -133,7 +158,10 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
     setSelected(new Set());
     const gone = new Set(ids);
     const remaining = bentoIds().filter((x) => !gone.has(x));
-    if (remaining.length !== doc.tiles.length) relayout(remaining, { previous: doc.tiles.filter((t) => !gone.has(t.imageId)) });
+    if (remaining.length !== doc.tiles.length)
+      relayout(remaining, {
+        previous: doc.tiles.filter((t) => !gone.has(t.imageId)),
+      });
     setImages((list) => list.filter((i) => !gone.has(i.id)));
     const results = await Promise.allSettled(ids.map((id) => api.deleteImage(id)));
     const failed = results.filter((r) => r.status === "rejected").length;
@@ -154,7 +182,10 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
         status: "uploading" as const,
       }));
       setImages((list) => [...list, ...temps]);
-      setProgress((p) => ({ done: p?.done ?? 0, total: (p?.total ?? 0) + files.length }));
+      setProgress((p) => ({
+        done: p?.done ?? 0,
+        total: (p?.total ?? 0) + files.length,
+      }));
       const done: CanvasImage[] = [];
       let next = 0;
       const worker = async () => {
@@ -288,7 +319,12 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
       <div ref={viewportRef} className={cn("absolute inset-0", grab && "cursor-grab", panning && "cursor-grabbing")} {...handlers}>
         <div
           className="absolute left-0 top-0 origin-top-left"
-          style={{ transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`, width: WORLD_W, height: worldH, pointerEvents: grab ? "none" : undefined }}
+          style={{
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.zoom})`,
+            width: WORLD_W,
+            height: worldH,
+            pointerEvents: grab ? "none" : undefined,
+          }}
         >
           <div className="absolute" style={{ left: REF_X, top: TOP, width: REF_WIDTH }}>
             <References
@@ -337,12 +373,12 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
 
       {/* Floating chrome */}
       <div className="absolute left-4 top-4" data-menu>
-        <CanvasNavLeft parent={data.projectName} current={data.name} onMenu={() => setMenuOpen((o) => !o)} />
+        <CanvasNavLeft parent={shared ? `Shared by ${shared.by}` : data.projectName} current={data.name} onMenu={() => setMenuOpen((o) => !o)} />
         {menuOpen && (
           <div className="absolute left-0 top-[60px] z-30">
             <Menu>
-              <MenuItem icon="grid" onSelect={() => (setMenuOpen(false), router.push("/home"))}>
-                Home
+              <MenuItem icon="grid" onSelect={() => (setMenuOpen(false), router.push(shared && !shared.signedIn ? "/" : "/home"))}>
+                {shared && !shared.signedIn ? "Depod home" : "Home"}
               </MenuItem>
               {api.deleteMoodboard && data.canEdit && (
                 <>
@@ -357,22 +393,24 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
         )}
       </div>
       <div className="absolute right-4 top-4">
-        <CanvasNavRight
-          people={data.people}
-          secondaryLabel="Share"
-          primaryLabel="Export"
-          onSecondary={() => showToast("Sharing comes with teams.")}
-          onPrimary={() => (doc.tiles.length ? setDialog("export") : showToast("Add images to the bento to export it."))}
-        />
+        {shared ? (
+          <SharedNavRight signedIn={shared.signedIn} initials={shared.initials} signInHref={shared.signInHref} />
+        ) : (
+          <CanvasNavRight
+            people={data.people}
+            secondaryLabel="Share"
+            primaryLabel="Export"
+            onSecondary={() => (api.share && share ? setDialog("share") : showToast("Sign in to share this moodboard."))}
+            onPrimary={() => (doc.tiles.length ? setDialog("export") : showToast("Add images to the bento to export it."))}
+          />
+        )}
       </div>
       <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 flex-col items-center gap-3">
-        {progress && progress.total > 1 && (
-          <Toast message={`Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}`} />
-        )}
+        {progress && progress.total > 1 && <Toast message={`Uploading ${Math.min(progress.done + 1, progress.total)} of ${progress.total}`} />}
         {toast && <Toast message={toast} />}
         <Toolbar
           active={tool}
-          only={["select", "hand", "images", "comment"]}
+          only={shared ? ["hand"] : ["select", "hand", "images", "comment"]}
           onChange={(t) => {
             if (t === "images") return fileInput.current?.click();
             if (t === "comment") return showToast("Comments come with teams.");
@@ -444,6 +482,9 @@ export function MoodboardCanvas({ data, api }: { data: MoodboardData; api: Moodb
       )}
       {dialog === "delete" && api.deleteMoodboard && (
         <DeleteMoodboardDialog name={data.name} imageCount={ready.length} onDelete={api.deleteMoodboard} onClose={() => setDialog(null)} />
+      )}
+      {dialog === "share" && api.share && share && (
+        <ShareDialog name={data.name} state={share} api={api.share} canEdit={data.canEdit} onChange={setShare} onClose={() => setDialog(null)} />
       )}
       {dialog === "limit" && <PlanLimitDialog kind="images" plan={data.plan} onClose={() => setDialog(null)} />}
 

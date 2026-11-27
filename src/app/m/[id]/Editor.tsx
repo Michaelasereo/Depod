@@ -6,6 +6,7 @@ import { MoodboardCanvas } from "@/components/canvas/MoodboardCanvas";
 import { PlanLimitError, type MoodboardApi, type MoodboardData } from "@/components/canvas/types";
 import { supabaseBrowser } from "@/lib/supabase/browser";
 import { deleteMoodboard } from "@/app/home/actions";
+import { setShareLink } from "@/app/share/actions";
 import { deleteImage, recordImage, saveBento, setStarter } from "./actions";
 
 /* Wires the canvas to Supabase: files go straight from the browser to private Storage, rows through server actions. */
@@ -26,6 +27,7 @@ export function Editor({ data, workspaceId, userName }: { data: MoodboardData; w
         if (!saved.ok) throw new PlanLimitError();
         return { id: saved.id, url: saved.url, width: f.width, height: f.height, name: f.name, hash: f.hash, addedBy: userName, addedAt: saved.addedAt };
       },
+      share: { setEnabled: (on) => setShareLink("moodboard", data.id, on) },
       deleteMoodboard: async (typed) => {
         const r = await deleteMoodboard(data.id, typed);
         if (!r.ok) return r.error === "name" ? "That name doesn't match." : "Couldn't delete. Try again.";

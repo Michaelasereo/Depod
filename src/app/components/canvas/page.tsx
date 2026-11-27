@@ -15,6 +15,7 @@ export default function CanvasDemo({ searchParams }: PageProps<"/components/canv
 
 async function Demo({ searchParams }: { searchParams: PageProps<"/components/canvas">["searchParams"] }) {
   const s = (await searchParams).state;
-  const state = s === "empty" || s === "references" ? s : "filled";
+  const states = ["empty", "references", "project", "project-empty", "project-shared", "shared"] as const;
+  const state = states.find((x) => x === s) ?? "filled";
   return <DemoCanvas key={state} state={state} />;
 }
