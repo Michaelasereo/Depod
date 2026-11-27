@@ -33,9 +33,9 @@ function useClickAway(open: boolean, close: () => void) {
   return ref;
 }
 
-/* 22: the four starter layouts as small diagrams. */
-function StarterDiagram({ id }: { id: StarterLayout }) {
-  const box = "rounded-md bg-bg-surface";
+/* 22: the four starter layouts as small diagrams. Picked cards turn white with grey tiles (22a). */
+function StarterDiagram({ id, on }: { id: StarterLayout; on: boolean }) {
+  const box = cn("rounded-md", on ? "bg-bg-subtle" : "bg-bg-surface");
   const cls: Record<StarterLayout, React.ReactNode> = {
     "hero-left": (
       <div className="grid h-full grid-cols-[1.9fr_1fr] gap-1.5">
@@ -72,25 +72,63 @@ function StarterDiagram({ id }: { id: StarterLayout }) {
       </div>
     ),
   };
-  return <div className="h-[118px] w-full rounded-xl bg-bg-subtle p-2.5">{cls[id]}</div>;
+  return (
+    <div className={cn("h-[200px] w-full rounded-2xl border-2 p-2.5", on ? "border-border-focus bg-bg-surface" : "border-transparent bg-bg-subtle")}>{cls[id]}</div>
+  );
 }
 
-export function StarterPicker({ value, onPick }: { value: StarterLayout; onPick: (s: StarterLayout) => void }) {
+/*
+ * 22 / 22a: pick with the radios, then Continue. 22b: the same picker reopened from Settings,
+ * with the current layout picked and Cancel.
+ */
+export function StarterPicker({
+  value,
+  onContinue,
+  onCancel,
+}: {
+  /** null the first time: nothing is picked and Continue waits. */
+  value: StarterLayout | null;
+  onContinue: (s: StarterLayout) => void;
+  onCancel?: () => void;
+}) {
+  const [choice, setChoice] = useState<StarterLayout | null>(value);
+  const changing = !!onCancel;
   return (
     <div className="flex flex-col gap-6 p-8">
       <div className="flex flex-col gap-1">
-        <h2 className="text-heading-20 text-text-primary">Pick a starter layout</h2>
-        <p className="text-body-15 text-text-secondary">It re-arranges itself as you add images. You can change it in Settings.</p>
+        <h2 className="text-heading-20 text-text-primary">{changing ? "Change starter layout" : "Pick a starter layout"}</h2>
+        <p className="text-body-15 text-text-secondary">
+          {changing
+            ? "Your images re-arrange into the new layout. Locked tiles stay where they are."
+            : "It re-arranges itself as you add images. You can change it later in Settings."}
+        </p>
       </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-5">
-        {STARTERS.map((s) => (
-          <button key={s.id} type="button" onClick={() => onPick(s.id)} aria-pressed={value === s.id} className="flex flex-col gap-2 text-left">
-            <span className={cn("rounded-2xl border-2 p-0.5", value === s.id ? "border-border-focus" : "border-transparent")}>
-              <StarterDiagram id={s.id} />
-            </span>
-            <span className={cn("text-caption-12", value === s.id ? "text-text-primary" : "text-text-secondary")}>{s.label}</span>
-          </button>
-        ))}
+      <div role="radiogroup" aria-label="Starter layout" className="grid grid-cols-2 gap-x-4 gap-y-5">
+        {STARTERS.map((s) => {
+          const on = choice === s.id;
+          return (
+            <button key={s.id} type="button" role="radio" aria-checked={on} onClick={() => setChoice(s.id)} className="flex flex-col gap-2 text-left">
+              <StarterDiagram id={s.id} on={on} />
+              <span className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className={cn("inline-block size-[18px] shrink-0 rounded-full bg-bg-surface", on ? "border-[5px] border-border-focus" : "border-[1.5px] border-border-strong")}
+                />
+                <span className="text-label-13 text-text-primary">{s.label}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex justify-end gap-2">
+        {onCancel && (
+          <Button variant="secondary" onClick={onCancel}>
+            Cancel
+          </Button>
+        )}
+        <Button disabled={!choice} onClick={() => choice && onContinue(choice)}>
+          Continue
+        </Button>
       </div>
     </div>
   );
@@ -113,20 +151,22 @@ function TileView({
   onMenu: (rect: DOMRect) => void;
   onOpen: () => void;
 }) {
-  const missing = !img;
+  // 41b: no image, or its file didn't load.
+  const [broken, setBroken] = useState<string | null>(null);
+  const missing = !img || broken === img.url;
   return (
     <div
-      className={cn("group absolute overflow-hidden rounded-xl", missing ? "border border-dashed border-border-strong bg-bg-surface" : "bg-bg-subtle")}
+      className={cn("group absolute overflow-hidden rounded-xl", missing ? "bg-status-danger-bg" : "bg-bg-subtle")}
       style={rect}
       onDoubleClick={onOpen}
     >
-      {img && (
+      {img && !missing && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={img.url} alt={img.name} draggable={false} className="size-full object-cover" />
+        <img src={img.url} alt={img.name} draggable={false} className="size-full object-cover" onError={() => setBroken(img.url)} />
       )}
       {missing && (
-        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-caption-12 text-text-secondary">
-          <Icon name="image" />
+        <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-caption-12 text-text-danger">
+          <Icon name="alert" />
           Image missing
         </span>
       )}
@@ -182,6 +222,7 @@ export function BentoPanel({
   toast: (msg: string) => void;
 }) {
   const [settings, setSettings] = useState(false);
+  const [changing, setChanging] = useState(false);
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [over, setOver] = useState(false);
   const settingsRef = useClickAway(settings, () => setSettings(false));
@@ -219,19 +260,15 @@ export function BentoPanel({
               {settings && (
                 <div className="absolute right-0 top-9 z-20">
                   <Menu>
-                    {STARTERS.map((s) => (
-                      <MenuItem
-                        key={s.id}
-                        icon="grid"
-                        checked={starter === s.id}
-                        onSelect={() => {
-                          onStarter(s.id);
-                          setSettings(false);
-                        }}
-                      >
-                        {s.label}
-                      </MenuItem>
-                    ))}
+                    <MenuItem
+                      icon="grid"
+                      onSelect={() => {
+                        setSettings(false);
+                        setChanging(true);
+                      }}
+                    >
+                      Change starter layout
+                    </MenuItem>
                   </Menu>
                 </div>
               )}
@@ -243,7 +280,7 @@ export function BentoPanel({
       <div
         ref={frameRef}
         className={cn("relative rounded-3xl border bg-bg-surface", over ? "border-border-focus" : "border-border-default")}
-        style={{ padding: PAD, minHeight: showPicker || tiles.length === 0 ? 400 : undefined }}
+        style={{ padding: PAD, minHeight: showPicker || changing || tiles.length === 0 ? 400 : undefined }}
         onDragOver={(e) => {
           if (!canEdit || !e.dataTransfer.types.includes("application/x-depod-images")) return;
           e.preventDefault();
@@ -260,7 +297,16 @@ export function BentoPanel({
         }}
       >
         {showPicker ? (
-          <StarterPicker value={starter} onPick={onStarter} />
+          <StarterPicker value={null} onContinue={onStarter} />
+        ) : changing ? (
+          <StarterPicker
+            value={starter}
+            onCancel={() => setChanging(false)}
+            onContinue={(s) => {
+              setChanging(false);
+              if (s !== starter) onStarter(s);
+            }}
+          />
         ) : tiles.length === 0 ? (
           <div className="flex flex-col items-center gap-2 px-10 py-16 text-center">
             <Illustration name="moodboard-bento" />

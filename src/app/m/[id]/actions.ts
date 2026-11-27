@@ -65,9 +65,14 @@ export async function recordImage(
     })
     .select("id, created_at")
     .single();
+  if (error?.message.includes("plan_limit")) {
+    // 19: the row was refused, so the file goes too.
+    await supabase.storage.from("images").remove([file.path]);
+    return { ok: false as const, error: "limit" as const };
+  }
   if (error || !data) throw new Error("record_failed");
   const { data: signed } = await supabase.storage.from("images").createSignedUrl(file.path, 60 * 60 * 6);
-  return { id: data.id, url: signed?.signedUrl ?? "", addedAt: data.created_at };
+  return { ok: true as const, id: data.id, url: signed?.signedUrl ?? "", addedAt: data.created_at };
 }
 
 export async function deleteImage(imageId: string) {

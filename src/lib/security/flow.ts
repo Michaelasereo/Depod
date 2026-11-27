@@ -13,7 +13,7 @@ import { deviceToken, markStepDone, requestDetails, sha256, stepSessionId } from
  * - Google sign-in on an untrusted device: a 6-digit email code.
  * Sign-in alerts go out once per new device, after the second step.
  */
-export const AFTER_SIGN_IN = "/settings/security"; // becomes /home in Phase 3
+export const AFTER_SIGN_IN = "/home";
 const TRUST_DAYS = 30;
 
 export type Step = "done" | "email" | "authenticator";

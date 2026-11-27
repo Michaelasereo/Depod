@@ -5,6 +5,7 @@ import { verifiedUser } from "@/lib/security/flow";
 import { parseDoc } from "@/lib/bento/doc";
 import type { StarterLayout } from "@/lib/bento/layout";
 import type { CanvasImage } from "@/components/canvas/types";
+import { LIMITS, type Plan } from "@/lib/data/plans";
 import { Editor } from "./Editor";
 
 export const metadata: Metadata = { title: "Moodboard · Depod" };
@@ -35,13 +36,15 @@ async function Load({ params }: { params: PageProps<"/m/[id]">["params"] }) {
   const { data: mb } = await supabase.from("moodboards").select("id, name, workspace_id, project_id, starter_layout").eq("id", id).maybeSingle();
   if (!mb) notFound();
 
-  const [{ data: project }, { data: images }, { data: bento }, { data: me }, { data: members }] = await Promise.all([
+  const [{ data: project }, { data: images }, { data: bento }, { data: me }, { data: members }, { data: ws }] = await Promise.all([
     mb.project_id ? supabase.from("projects").select("name").eq("id", mb.project_id).maybeSingle() : Promise.resolve({ data: null }),
     supabase.from("images").select("id, file_path, width, height, hash, name, added_by, created_at").eq("moodboard_id", id).order("created_at"),
     supabase.from("bentos").select("layout").eq("moodboard_id", id).maybeSingle(),
     supabase.from("members").select("role").eq("workspace_id", mb.workspace_id).eq("user_id", user.id).maybeSingle(),
     supabase.from("members").select("user_id").eq("workspace_id", mb.workspace_id).limit(3),
+    supabase.from("workspaces").select("plan").eq("id", mb.workspace_id).maybeSingle(),
   ]);
+  const plan: Plan = ws?.plan && ws.plan in LIMITS ? (ws.plan as Plan) : "free";
 
   const ids = [...new Set([...(images ?? []).map((i) => i.added_by), ...(members ?? []).map((m) => m.user_id)].filter(Boolean))] as string[];
   const { data: profiles } = ids.length ? await supabase.from("profiles").select("user_id, name").in("user_id", ids) : { data: [] };
@@ -75,6 +78,9 @@ async function Load({ params }: { params: PageProps<"/m/[id]">["params"] }) {
         images: canvasImages,
         doc: parseDoc(bento?.layout),
         canEdit: me?.role === "owner" || me?.role === "editor",
+        plan,
+        imageLimit: LIMITS[plan].images,
+        markLocked: LIMITS[plan].mark,
         people: (members ?? []).map((m) => ({ initials: initialsOf(nameOf(m.user_id)), name: nameOf(m.user_id) })),
       }}
     />

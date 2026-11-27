@@ -105,9 +105,11 @@ export function CanvasNavRight({
   people,
   secondaryLabel = "Share",
   primaryLabel = "Export",
+  primaryIcon = "download",
   onSecondary,
   onPrimary,
 }: {
+  primaryIcon?: IconName;
   people: Array<{ initials: string; name: string }>;
   secondaryLabel?: string;
   primaryLabel?: string;
@@ -124,7 +126,9 @@ export function CanvasNavRight({
       <Button variant="secondary" onClick={onSecondary}>
         {secondaryLabel}
       </Button>
-      <Button onClick={onPrimary}>{primaryLabel}</Button>
+      <Button leadingIcon={primaryIcon} onClick={onPrimary}>
+        {primaryLabel}
+      </Button>
     </div>
   );
 }

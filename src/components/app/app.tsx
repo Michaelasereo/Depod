@@ -79,12 +79,14 @@ export function MoodboardCard({
   name,
   details,
   images,
+  onMore,
 }: {
   href: string;
   name: string;
   details: string;
   /** Up to 7 image URLs or colours for the thumbnail bento. */
   images: string[];
+  onMore?: (anchor: DOMRect) => void;
 }) {
   return (
     <div className="flex w-full flex-col gap-2.5">
@@ -108,7 +110,7 @@ export function MoodboardCard({
           <Link href={href} className="truncate text-label-13 text-text-primary">{name}</Link>
           <span className="truncate text-caption-12 text-text-secondary">{details}</span>
         </div>
-        <IconButton icon="more" label={`More for ${name}`} size="small" />
+        <IconButton icon="more" label={`More for ${name}`} size="small" onClick={(e) => onMore?.(e.currentTarget.getBoundingClientRect())} />
       </div>
     </div>
   );
