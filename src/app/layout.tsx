@@ -7,9 +7,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
-  // Theme comes from Preferences (light, dark, system); System is the default.
+  // Theme comes from Preferences (light, dark, system); Light is the default.
   return (
-    <html lang="en" data-theme="system" className="h-full">
+    <html lang="en" data-theme="light" className="h-full">
       <body className="min-h-full">{children}</body>
     </html>
   );
