@@ -36,6 +36,9 @@ export async function proxy(request: NextRequest) {
     return r;
   };
 
+  // Until the marketing site lands (Phase 7), the root goes straight into the app.
+  if (path === "/") return redirect(user ? "/home" : "/sign-in");
+
   const needsAuth = PROTECTED.some((p) => path.startsWith(p));
   const isStep = SECOND_STEP.some((p) => path.startsWith(p));
   if (!user && (needsAuth || isStep)) return redirect("/sign-in");

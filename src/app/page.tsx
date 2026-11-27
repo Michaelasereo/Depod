@@ -1,7 +1,7 @@
 import { LinkButton } from "@/components/ui/Button";
 import { Wordmark } from "@/components/brand/Logo";
 
-// Placeholder until Phase 7 builds the marketing home page.
+// Placeholder until Phase 7 builds the marketing home page. The proxy sends "/" to /home or /sign-in, so this rarely shows.
 export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center gap-6 p-8 text-center">
