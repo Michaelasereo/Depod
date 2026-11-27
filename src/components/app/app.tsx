@@ -26,7 +26,7 @@ export function TopNav({
   workspace,
   initials,
 }: {
-  current: "home" | "projects" | "shared";
+  current?: "home" | "projects" | "shared";
   workspace: string;
   initials: string;
 }) {
